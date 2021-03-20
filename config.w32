@@ -1,0 +1,7 @@
+ARG_ENABLE('php_profiler', 'php_profiler support', 'no');
+
+if (PHP_PHP_PROFILER != 'no') {
+	AC_DEFINE('HAVE_PHP_PROFILER', 1, 'php_profiler support enabled');
+
+	EXTENSION('php_profiler', 'php_profiler.c', null, '/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1');
+}
