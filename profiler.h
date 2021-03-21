@@ -5,7 +5,32 @@ static zend_always_inline void add_leaf_node(function_frame *frame);
 
 static zend_always_inline function_frame* allocate_frame()
 {
+    if (GLOB(free_frames_list) != NULL) {
+        function_frame *frame = GLOB(free_frames_list);
+        GLOB(free_frames_list) = frame->previous_frame;
+        frame->previous_frame = NULL;
+        return frame;
+    }
     return (function_frame *)emalloc(sizeof(function_frame));
+}
+
+static zend_always_inline void lazy_free_function_frame(function_frame *frame)
+{
+    if (frame->class_name != NULL) {
+        zend_string_release(frame->class_name);
+        frame->class_name = NULL;
+    }
+
+    if (frame->func_name != NULL) {
+        zend_string_release(frame->func_name);
+        frame->func_name = NULL;
+    }
+
+    frame->w_start = 0;
+    frame->w_end = 0;
+    frame->recursive_level = 0;
+    frame->previous_frame = GLOB(free_frames_list);
+    GLOB(free_frames_list) = frame->previous_frame;
 }
 
 static zend_always_inline zend_string* get_function_name(zend_execute_data *execute_data)
@@ -51,7 +76,6 @@ static zend_always_inline int start_profiling_function(zend_execute_data *execut
     frame->class_name = get_class_name(execute_data);
     frame->recursive_level = ++GLOB(current_recursive_level);
     frame->w_start = time_milliseconds(GLOB(clock_source), GLOB(timebase_factor));
-    frame->is_visited = IS_FALSE;
     return 1;
 }
 

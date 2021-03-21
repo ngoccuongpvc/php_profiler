@@ -16,6 +16,7 @@
 	ZEND_PARSE_PARAMETERS_START(0, 0) \
 	ZEND_PARSE_PARAMETERS_END()
 #endif
+#define GLOB(v) ZEND_MODULE_GLOBALS_ACCESSOR(php_profiler, v)
 
 PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("php_profiler.clock_use_rdtsc", "0", PHP_INI_SYSTEM, OnUpdateBool, clock_use_rdtsc, zend_php_profiler_globals, php_profiler_globals)
@@ -50,12 +51,12 @@ PHP_RINIT_FUNCTION(php_profiler)
 	ZEND_TSRMLS_CACHE_UPDATE();
 #endif
 
-    php_profiler_globals.clock_source = determine_clock_source(php_profiler_globals.clock_use_rdtsc);
-    php_profiler_globals.timebase_factor = get_timebase_factor(php_profiler_globals.clock_source);
-    php_profiler_globals.current_recursive_level = 0;
-    php_profiler_globals.i_leaf_node = 0;
-    php_profiler_globals.n_leaf_node = 0;
-    php_profiler_globals.chunk_length = 0;
+    GLOB(clock_source) = determine_clock_source(GLOB(clock_use_rdtsc));
+    GLOB(timebase_factor) = get_timebase_factor(GLOB(clock_source));
+    GLOB(current_recursive_level) = 0;
+    GLOB(i_leaf_node) = 0;
+    GLOB(n_leaf_node) = 0;
+    GLOB(chunk_length) = 0;
 
 
     original_zend_execute_ex = zend_execute_ex;
@@ -64,37 +65,6 @@ PHP_RINIT_FUNCTION(php_profiler)
     original_zend_execute_internal = zend_execute_internal;
     zend_execute_internal = my_execute_internal;
 	return SUCCESS;
-}
-
-static void print_debug(function_frame *frame)
-{
-    if (frame->is_visited == IS_TRUE) {
-        return;
-    }
-    if (frame->previous_frame) {
-        print_debug(frame->previous_frame);
-    }
-
-    frame->is_visited = IS_TRUE;
-
-    if (frame->class_name) {
-        php_printf("%s:", ZSTR_VAL(frame->class_name));
-    }
-    if (frame->func_name) {
-        php_printf("%s\n", ZSTR_VAL(frame->func_name));
-    }
-    php_printf("recursive_level: %d\n", frame->recursive_level);
-    php_printf("time started: %llu\n", frame->w_start);
-    php_printf("time ended: %llu\n", frame->w_end);
-    php_printf("time interval: %llu\n", frame->w_end - frame->w_start);
-
-    char *c = php_profiler_globals.function_chunk;
-    int i = php_profiler_globals.chunk_length;
-
-    int len = snprintf(c+i, 32768, "{%s,%s(),%llu,%llu,%d}", frame->class_name == NULL ? "closure": ZSTR_VAL(frame->class_name),
-                                    ZSTR_VAL(frame->func_name), frame->w_start, frame->w_end, frame->recursive_level);
-    php_printf("printed %d characters\n", len);
-    php_profiler_globals.chunk_length += len;
 }
 
 PHP_RSHUTDOWN_FUNCTION(php_profiler)
@@ -112,7 +82,7 @@ PHP_GSHUTDOWN_FUNCTION(php_profiler)
 
 PHP_GINIT_FUNCTION(php_profiler)
 {
-    php_profiler_globals->root_frame = NULL;
+    php_profiler_globals->free_frames_list = NULL;
     php_profiler_globals->current_frame = NULL;
     php_profiler_globals->stack_frame = NULL;
 }
