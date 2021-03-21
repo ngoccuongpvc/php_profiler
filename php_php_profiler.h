@@ -7,11 +7,29 @@ extern zend_module_entry php_profiler_module_entry;
 # define phpext_php_profiler_ptr &php_profiler_module_entry
 
 # define PHP_PHP_PROFILER_VERSION "0.1.0"
+#define PHP_PROFILER_CLOCK_CGT 0
+#define PHP_PROFILER_CLOCK_GTOD 1
+#define PHP_PROFILER_CLOCK_TSC 2
+#define PHP_PROFILER_CLOCK_MACH 3
+#define PHP_PROFILER_CLOCK_QPC 4
+#define PHP_PROFILER_CLOCK_NONE 255
+
+#if !defined(uint32)
+typedef unsigned int uint32;
+#endif
+
+#if !defined(uint64)
+typedef unsigned long long uint64;
+#endif
+
 typedef struct function_frame function_frame;
 
 struct function_frame {
     zend_string *class_name;
     zend_string *func_name;
+    uint64 w_start;
+    uint64 w_end;
+    int recursive_level;
     struct function_frame *previous_frame;
 };
 
@@ -19,6 +37,10 @@ ZEND_BEGIN_MODULE_GLOBALS(php_profiler)
     function_frame *root_frame;
     function_frame *current_frame;
     function_frame **leaf_nodes;
+    zend_bool clock_use_rdtsc;
+    int clock_source;
+    double timebase_factor;
+    int current_recursive_level;
 ZEND_END_MODULE_GLOBALS(php_profiler)
 
 ZEND_DECLARE_MODULE_GLOBALS(php_profiler)

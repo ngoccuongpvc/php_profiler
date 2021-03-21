@@ -7,6 +7,8 @@
 #include "php.h"
 #include "ext/standard/info.h"
 #include "php_php_profiler.h"
+#include "timer.h"
+#include "profiler.h"
 
 /* For compatibility with older PHP versions */
 #ifndef ZEND_PARSE_PARAMETERS_NONE
@@ -15,63 +17,42 @@
 	ZEND_PARSE_PARAMETERS_END()
 #endif
 
+PHP_INI_BEGIN()
+    STD_PHP_INI_ENTRY("php_profiler.clock_use_rdtsc", "0", PHP_INI_SYSTEM, OnUpdateBool, clock_use_rdtsc, zend_php_profiler_globals, php_profiler_globals)
+PHP_INI_END()
+
 static void (*original_zend_execute_ex) (zend_execute_data *execute_data);
 static void (*original_zend_execute_internal) (zend_execute_data *execute_data, zval *return_value);
 
-static zend_always_inline zend_string* get_function_name(zend_execute_data *execute_data)
-{
-    zend_function *curr_func;
-    if (!execute_data) {
-        return NULL;
-    }
-    curr_func = execute_data->func;
-    if (!curr_func->common.function_name) {
-        return NULL;
-    }
-    zend_string_addref(curr_func->common.function_name);
-    return curr_func->common.function_name;
-}
-
-void print_class_detail(zend_execute_data *execute_data)
-{
-    if (!execute_data) {
-        return;
-    }
-    if (execute_data->func->common.scope != NULL) {
-        php_printf("%s", ZSTR_VAL(execute_data->func->common.scope->name));
-    }
-    return;
-}
-
 void my_execute_internal(zend_execute_data *execute_data, zval *return_value)
 {
-    print_class_detail(execute_data);
-
-    zend_string *function_name = get_function_name(execute_data);
-    if (function_name != NULL) {
-        php_printf("function name: %s\n", ZSTR_VAL(function_name));
-    }
+    int is_profiling = start_profiling_function(execute_data);
     execute_internal(execute_data, return_value);
+
+    if (is_profiling) {
+        end_profiling_function();
+    }
 }
 void my_execute_ex (zend_execute_data *execute_data)
 {
-    print_class_detail(execute_data);
-
-    zend_string *function_name = get_function_name(execute_data);
-
-    if (function_name != NULL) {
-        php_printf("function name: %s\n", ZSTR_VAL(function_name));
-    }
+    int is_profiling = start_profiling_function(execute_data);
     original_zend_execute_ex(execute_data);
+
+    if (is_profiling) {
+        end_profiling_function();
+    }
 }
 
-/* {{{ PHP_RINIT_FUNCTION
- */
+
 PHP_RINIT_FUNCTION(php_profiler)
 {
 #if defined(ZTS) && defined(COMPILE_DL_PHP_PROFILER)
 	ZEND_TSRMLS_CACHE_UPDATE();
 #endif
+
+    php_profiler_globals.clock_source = determine_clock_source(php_profiler_globals.clock_use_rdtsc);
+    php_profiler_globals.timebase_factor = get_timebase_factor(php_profiler_globals.clock_source);
+    php_profiler_globals.current_recursive_level = 0;
     original_zend_execute_ex = zend_execute_ex;
     zend_execute_ex = my_execute_ex;
 
