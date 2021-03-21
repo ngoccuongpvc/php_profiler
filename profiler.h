@@ -1,7 +1,7 @@
 #include "timer.h"
 
 #define GLOB(v) ZEND_MODULE_GLOBALS_ACCESSOR(php_profiler, v)
-static zend_always_inline void print_debug(function_frame *frame);
+static zend_always_inline void add_leaf_node(function_frame *frame);
 
 static zend_always_inline function_frame* allocate_frame()
 {
@@ -51,6 +51,7 @@ static zend_always_inline int start_profiling_function(zend_execute_data *execut
     frame->class_name = get_class_name(execute_data);
     frame->recursive_level = ++GLOB(current_recursive_level);
     frame->w_start = time_milliseconds(GLOB(clock_source), GLOB(timebase_factor));
+    frame->is_visited = IS_FALSE;
     return 1;
 }
 
@@ -58,23 +59,21 @@ static zend_always_inline void end_profiling_function()
 {
     function_frame* frame = GLOB(current_frame);
     GLOB(current_frame) = frame->previous_frame;
-    --GLOB(current_recursive_level);
-
     frame->w_end = time_milliseconds(GLOB(clock_source), GLOB(timebase_factor));
 
-    print_debug(frame);
+    //this frame doesn't have any children frame => it is a leaf node
+    if (frame->recursive_level == GLOB(current_recursive_level)) {
+        add_leaf_node(frame);
+    }
+    --GLOB(current_recursive_level);
+//    print_debug(frame);
 }
 
-static zend_always_inline void print_debug(function_frame *frame)
+static zend_always_inline void add_leaf_node(function_frame *frame)
 {
-    if (frame->class_name) {
-        php_printf("%s:\n", ZSTR_VAL(frame->class_name));
+    if (GLOB(n_leaf_node) == 0) {
+        GLOB(leaf_nodes) = (function_frame**)emalloc(sizeof(function_frame*)*100);
+        GLOB(n_leaf_node) = 100;
     }
-    if (frame->func_name) {
-        php_printf("%s\n", ZSTR_VAL(frame->func_name));
-    }
-    php_printf("recursive_level: %d\n", frame->recursive_level);
-    php_printf("time started: %llu\n", frame->w_start);
-    php_printf("time ended: %llu\n", frame->w_end);
-    php_printf("time interval: %llu\n", frame->w_start - frame->w_end);
+    GLOB(leaf_nodes[GLOB(i_leaf_node)++]) = frame;
 }

@@ -53,6 +53,10 @@ PHP_RINIT_FUNCTION(php_profiler)
     php_profiler_globals.clock_source = determine_clock_source(php_profiler_globals.clock_use_rdtsc);
     php_profiler_globals.timebase_factor = get_timebase_factor(php_profiler_globals.clock_source);
     php_profiler_globals.current_recursive_level = 0;
+    php_profiler_globals.i_leaf_node = 0;
+    php_profiler_globals.n_leaf_node = 0;
+
+
     original_zend_execute_ex = zend_execute_ex;
     zend_execute_ex = my_execute_ex;
 
@@ -61,10 +65,37 @@ PHP_RINIT_FUNCTION(php_profiler)
 	return SUCCESS;
 }
 
+static void print_debug(function_frame *frame)
+{
+    if (frame->is_visited == IS_TRUE) {
+        return;
+    }
+    if (frame->previous_frame) {
+        print_debug(frame->previous_frame);
+    }
+
+    frame->is_visited = IS_TRUE;
+
+    if (frame->class_name) {
+        php_printf("%s:\n", ZSTR_VAL(frame->class_name));
+    }
+    if (frame->func_name) {
+        php_printf("%s\n", ZSTR_VAL(frame->func_name));
+    }
+    php_printf("recursive_level: %d\n", frame->recursive_level);
+    php_printf("time started: %llu\n", frame->w_start);
+    php_printf("time ended: %llu\n", frame->w_end);
+    php_printf("time interval: %llu\n", frame->w_end - frame->w_start);
+}
+
 PHP_RSHUTDOWN_FUNCTION(php_profiler)
 {
     zend_execute_ex = original_zend_execute_ex;
     zend_execute_internal = original_zend_execute_internal;
+
+    for (int i=0; i<php_profiler_globals.i_leaf_node; ++i) {
+        print_debug(php_profiler_globals.leaf_nodes[i]);
+    }
 	return SUCCESS;
 }
 

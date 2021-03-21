@@ -30,6 +30,7 @@ struct function_frame {
     uint64 w_start;
     uint64 w_end;
     int recursive_level;
+    zend_bool is_visited;
     struct function_frame *previous_frame;
 };
 
@@ -37,6 +38,7 @@ ZEND_BEGIN_MODULE_GLOBALS(php_profiler)
     function_frame *root_frame;
     function_frame *current_frame;
     function_frame **leaf_nodes;
+    int i_leaf_node, n_leaf_node;
     zend_bool clock_use_rdtsc;
     int clock_source;
     double timebase_factor;
