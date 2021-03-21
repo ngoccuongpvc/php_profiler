@@ -37,12 +37,14 @@ struct function_frame {
 ZEND_BEGIN_MODULE_GLOBALS(php_profiler)
     function_frame *root_frame;
     function_frame *current_frame;
-    function_frame **leaf_nodes;
+    function_frame *stack_frame;
     int i_leaf_node, n_leaf_node;
     zend_bool clock_use_rdtsc;
     int clock_source;
     double timebase_factor;
     int current_recursive_level;
+    char function_chunk[32768];
+    int chunk_length;
 ZEND_END_MODULE_GLOBALS(php_profiler)
 
 ZEND_DECLARE_MODULE_GLOBALS(php_profiler)
