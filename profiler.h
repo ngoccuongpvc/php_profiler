@@ -102,10 +102,13 @@ static zend_always_inline void end_profiling_function()
     frame->w_end = time_milliseconds(GLOB(clock_source), GLOB(timebase_factor));
     --GLOB(current_recursive_level);
 
-    frame->previous_frame = GLOB(stack_frame);
-    GLOB(stack_frame) = frame;
-
-    if (frame->recursive_level == 1) {
-        enqueue();
+    if (frame->w_end - frame->w_start >= GLOB(threshold)) {
+        frame->previous_frame = GLOB(stack_frame);
+        GLOB(stack_frame) = frame;
+        if (frame->recursive_level == 1) {
+            enqueue();
+        }
+    } else {
+        lazy_free_function_frame(frame);
     }
 }

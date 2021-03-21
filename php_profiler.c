@@ -44,13 +44,8 @@ void my_execute_ex (zend_execute_data *execute_data)
     }
 }
 
-
-PHP_RINIT_FUNCTION(php_profiler)
+void init_request()
 {
-#if defined(ZTS) && defined(COMPILE_DL_PHP_PROFILER)
-	ZEND_TSRMLS_CACHE_UPDATE();
-#endif
-
     GLOB(clock_source) = determine_clock_source(GLOB(clock_use_rdtsc));
     GLOB(timebase_factor) = get_timebase_factor(GLOB(clock_source));
     GLOB(current_recursive_level) = 0;
@@ -58,12 +53,25 @@ PHP_RINIT_FUNCTION(php_profiler)
     GLOB(n_leaf_node) = 0;
     GLOB(chunk_length) = 0;
 
+    GLOB(threshold) = atoi(getenv("php_profiler_threshold") == NULL ? "0" : getenv("php_profiler_threshold"));
+    GLOB(max_recursion) = atoi(getenv("php_profiler_max_recursion") == NULL ? "100" : getenv("php_profiler_max_recursion"));
+    GLOB(enabled) = atoi(getenv("php_profiler_enabled") == NULL ? "0" : getenv("php_profiler_enabled"));
+}
 
+PHP_RINIT_FUNCTION(php_profiler)
+{
+#if defined(ZTS) && defined(COMPILE_DL_PHP_PROFILER)
+	ZEND_TSRMLS_CACHE_UPDATE();
+#endif
+    init_request();
     original_zend_execute_ex = zend_execute_ex;
-    zend_execute_ex = my_execute_ex;
-
     original_zend_execute_internal = zend_execute_internal;
-    zend_execute_internal = my_execute_internal;
+
+    if (GLOB(enabled)) {
+        zend_execute_ex = my_execute_ex;
+        zend_execute_internal = my_execute_internal;
+    }
+
 	return SUCCESS;
 }
 
