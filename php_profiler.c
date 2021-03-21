@@ -15,34 +15,55 @@
 	ZEND_PARSE_PARAMETERS_END()
 #endif
 
-/* {{{ void php_profiler_test1()
- */
-PHP_FUNCTION(php_profiler_test1)
+static void (*original_zend_execute_ex) (zend_execute_data *execute_data);
+static void (*original_zend_execute_internal) (zend_execute_data *execute_data, zval *return_value);
+
+static zend_always_inline zend_string* get_function_name(zend_execute_data *execute_data)
 {
-	ZEND_PARSE_PARAMETERS_NONE();
-
-	php_printf("The extension %s is loaded and working!\r\n", "php_profiler");
+    zend_function *curr_func;
+    if (!execute_data) {
+        return NULL;
+    }
+    curr_func = execute_data->func;
+    if (!curr_func->common.function_name) {
+        return NULL;
+    }
+    zend_string_addref(curr_func->common.function_name);
+    return curr_func->common.function_name;
 }
-/* }}} */
 
-/* {{{ string php_profiler_test2( [ string $var ] )
- */
-PHP_FUNCTION(php_profiler_test2)
+void print_class_detail(zend_execute_data *execute_data)
 {
-	char *var = "World";
-	size_t var_len = sizeof("World") - 1;
-	zend_string *retval;
-
-	ZEND_PARSE_PARAMETERS_START(0, 1)
-		Z_PARAM_OPTIONAL
-		Z_PARAM_STRING(var, var_len)
-	ZEND_PARSE_PARAMETERS_END();
-
-	retval = strpprintf(0, "Hello %s", var);
-
-	RETURN_STR(retval);
+    if (!execute_data) {
+        return;
+    }
+    if (execute_data->func->common.scope != NULL) {
+        php_printf("%s", ZSTR_VAL(execute_data->func->common.scope->name));
+    }
+    return;
 }
-/* }}}*/
+
+void my_execute_internal(zend_execute_data *execute_data, zval *return_value)
+{
+    print_class_detail(execute_data);
+
+    zend_string *function_name = get_function_name(execute_data);
+    if (function_name != NULL) {
+        php_printf("function name: %s\n", ZSTR_VAL(function_name));
+    }
+    execute_internal(execute_data, return_value);
+}
+void my_execute_ex (zend_execute_data *execute_data)
+{
+    print_class_detail(execute_data);
+
+    zend_string *function_name = get_function_name(execute_data);
+
+    if (function_name != NULL) {
+        php_printf("function name: %s\n", ZSTR_VAL(function_name));
+    }
+    original_zend_execute_ex(execute_data);
+}
 
 /* {{{ PHP_RINIT_FUNCTION
  */
@@ -51,9 +72,33 @@ PHP_RINIT_FUNCTION(php_profiler)
 #if defined(ZTS) && defined(COMPILE_DL_PHP_PROFILER)
 	ZEND_TSRMLS_CACHE_UPDATE();
 #endif
+    original_zend_execute_ex = zend_execute_ex;
+    zend_execute_ex = my_execute_ex;
 
+    original_zend_execute_internal = zend_execute_internal;
+    zend_execute_internal = my_execute_internal;
 	return SUCCESS;
 }
+
+PHP_RSHUTDOWN_FUNCTION(php_profiler)
+{
+    zend_execute_ex = original_zend_execute_ex;
+    zend_execute_internal = original_zend_execute_internal;
+	return SUCCESS;
+}
+
+PHP_GSHUTDOWN_FUNCTION(php_profiler)
+{
+}
+
+PHP_GINIT_FUNCTION(php_profiler)
+{
+    php_profiler_globals->root_frame = NULL;
+    php_profiler_globals->current_frame = NULL;
+    php_profiler_globals->leaf_nodes = NULL;
+}
+
+
 /* }}} */
 
 /* {{{ PHP_MINFO_FUNCTION
@@ -64,23 +109,11 @@ PHP_MINFO_FUNCTION(php_profiler)
 	php_info_print_table_header(2, "php_profiler support", "enabled");
 	php_info_print_table_end();
 }
-/* }}} */
 
-/* {{{ arginfo
- */
-ZEND_BEGIN_ARG_INFO(arginfo_php_profiler_test1, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO(arginfo_php_profiler_test2, 0)
-	ZEND_ARG_INFO(0, str)
-ZEND_END_ARG_INFO()
-/* }}} */
 
 /* {{{ php_profiler_functions[]
  */
 static const zend_function_entry php_profiler_functions[] = {
-	PHP_FE(php_profiler_test1,		arginfo_php_profiler_test1)
-	PHP_FE(php_profiler_test2,		arginfo_php_profiler_test2)
 	PHP_FE_END
 };
 /* }}} */
@@ -94,10 +127,14 @@ zend_module_entry php_profiler_module_entry = {
 	NULL,							/* PHP_MINIT - Module initialization */
 	NULL,							/* PHP_MSHUTDOWN - Module shutdown */
 	PHP_RINIT(php_profiler),			/* PHP_RINIT - Request initialization */
-	NULL,							/* PHP_RSHUTDOWN - Request shutdown */
+	PHP_RSHUTDOWN(php_profiler),							/* PHP_RSHUTDOWN - Request shutdown */
 	PHP_MINFO(php_profiler),			/* PHP_MINFO - Module info */
 	PHP_PHP_PROFILER_VERSION,		/* Version */
-	STANDARD_MODULE_PROPERTIES
+	PHP_MODULE_GLOBALS(php_profiler),
+	PHP_GINIT(php_profiler),
+	PHP_GSHUTDOWN(php_profiler),
+	NULL,
+	STANDARD_MODULE_PROPERTIES_EX
 };
 /* }}} */
 
