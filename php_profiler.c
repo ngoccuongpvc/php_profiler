@@ -10,7 +10,7 @@
 #include "timer.h"
 #include "profiler.h"
 
-
+#include <SAPI.h>
 /* For compatibility with older PHP versions */
 #ifndef ZEND_PARSE_PARAMETERS_NONE
 #define ZEND_PARSE_PARAMETERS_NONE() \
@@ -61,11 +61,39 @@ void init_request()
     init_sock("/tmp/echo.sock");
 }
 
+static int start_transaction()
+{
+    char buf[4096];
+    zend_auto_global* auto_global;
+    HashTable* server;
+    zval* val;
+    char* host;
+    char* uri;
+
+    if (!zend_hash_exists(&EG(symbol_table),zend_string_init("_SERVER", strlen("_SERVER"), 0))) {
+        if ((auto_global = zend_hash_find_ptr(CG(auto_globals),zend_string_init("_SERVER", strlen("_SERVER"), 0)) )!= NULL) {
+            auto_global->armed = auto_global->auto_global_callback(auto_global->name);
+        }
+    }
+    if ((server = zend_hash_find_ptr(&EG(symbol_table),zend_string_init("_SERVER", strlen("_SERVER"), 0))) == NULL) {
+        return 0;
+    }
+
+    if ((val = zend_hash_find(server,zend_string_init("HTTP_HOST", strlen("HTTP_HOST"), 0))) != NULL && Z_TYPE_P(val) == IS_STRING) {
+        host = Z_STRVAL_P(val);
+    }
+    if ((val = zend_hash_find(server,zend_string_init("REQUEST_URI", strlen("REQUEST_URI"), 0))) != NULL && Z_TYPE_P(val) == IS_STRING) {
+        uri = Z_STRVAL_P(val);
+    }
+    return 1;
+}
+
 PHP_RINIT_FUNCTION(php_profiler)
 {
 #if defined(ZTS) && defined(COMPILE_DL_PHP_PROFILER)
 	ZEND_TSRMLS_CACHE_UPDATE();
 #endif
+    start_transaction();
     init_request();
     original_zend_execute_ex = zend_execute_ex;
     original_zend_execute_internal = zend_execute_internal;
