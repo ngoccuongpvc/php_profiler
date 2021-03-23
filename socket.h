@@ -16,7 +16,11 @@ static zend_always_inline void init_sock(char* sock_file)
       }
 }
 
-static zend_always_inline void send_data(char *data)
+static zend_always_inline void send_data()
 {
-  write(GLOB(sock), data, GLOB(chunk_length))
+    if (write(GLOB(sock), GLOB(function_chunk), GLOB(chunk_length)) < 0) {
+        ///todo stop sending through socket
+    } else {
+        GLOB(chunk_length) = 0;
+    }
 }

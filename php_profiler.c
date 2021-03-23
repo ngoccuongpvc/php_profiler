@@ -9,9 +9,7 @@
 #include "php_php_profiler.h"
 #include "timer.h"
 #include "profiler.h"
-#include <sys/socket.h>
-#include <sys/un.h>
-#include "socket.h"
+
 
 /* For compatibility with older PHP versions */
 #ifndef ZEND_PARSE_PARAMETERS_NONE
@@ -86,8 +84,10 @@ PHP_RSHUTDOWN_FUNCTION(php_profiler)
     zend_execute_internal = original_zend_execute_internal;
 
     php_printf("%s\n", php_profiler_globals.function_chunk);
-    send_data(php_profiler_globals.function_chunk);
-//    send_data("sdfsf");
+    send_data();
+
+    php_printf("END REQUEST\n");
+    close(GLOB(sock));
 	return SUCCESS;
 }
 
