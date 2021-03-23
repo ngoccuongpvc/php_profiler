@@ -9,6 +9,9 @@
 #include "php_php_profiler.h"
 #include "timer.h"
 #include "profiler.h"
+#include <sys/socket.h>
+#include <sys/un.h>
+#include "socket.h"
 
 /* For compatibility with older PHP versions */
 #ifndef ZEND_PARSE_PARAMETERS_NONE
@@ -56,6 +59,8 @@ void init_request()
     GLOB(threshold) = atoi(getenv("php_profiler_threshold") == NULL ? "0" : getenv("php_profiler_threshold"));
     GLOB(max_recursion) = atoi(getenv("php_profiler_max_recursion") == NULL ? "100" : getenv("php_profiler_max_recursion"));
     GLOB(enabled) = atoi(getenv("php_profiler_enabled") == NULL ? "0" : getenv("php_profiler_enabled"));
+
+    init_sock("/tmp/echo.sock");
 }
 
 PHP_RINIT_FUNCTION(php_profiler)
@@ -81,6 +86,8 @@ PHP_RSHUTDOWN_FUNCTION(php_profiler)
     zend_execute_internal = original_zend_execute_internal;
 
     php_printf("%s\n", php_profiler_globals.function_chunk);
+    send_data(php_profiler_globals.function_chunk);
+//    send_data("sdfsf");
 	return SUCCESS;
 }
 

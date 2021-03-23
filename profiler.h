@@ -1,7 +1,6 @@
 #include "timer.h"
 
 #define GLOB(v) ZEND_MODULE_GLOBALS_ACCESSOR(php_profiler, v)
-static zend_always_inline void add_leaf_node(function_frame *frame);
 
 static zend_always_inline function_frame* allocate_frame()
 {
